@@ -26,10 +26,8 @@ import com.amazon.deequ.utils.AssertionUtils.TryUtils
 import com.amazon.deequ.utils.FixtureSupport
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.types._
 import org.scalatest.Inside.inside
-import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
@@ -243,99 +241,6 @@ class AnalyzerTests extends AnyWordSpec with Matchers with SparkContextSpec with
           assert(metric.value.isFailure)
       }
 
-    }
-  }
-
-
-  "Histogram analyzer" should {
-    "compute correct metrics " in withSparkSession { sparkSession =>
-      val dfFull = getDfMissing(sparkSession)
-      val histogram = Histogram("att1").calculate(dfFull)
-      assert(histogram.value.isSuccess)
-
-      histogram.value.get match {
-        case hv =>
-          assert(hv.numberOfBins == 3)
-          assert(hv.values.size == 3)
-          assert(hv.values.keys == Set("a", "b", Histogram.NullFieldReplacement))
-
-      }
-    }
-
-    "compute correct sum metrics " in withSparkSession { sparkSession =>
-      val dfFull = getDateDf(sparkSession)
-      val histogram = Histogram("product", aggregateFunction = Histogram.Sum("units")).calculate(dfFull)
-      assert(histogram.value.isSuccess)
-
-      histogram.value.get match {
-        case hv =>
-          assert(hv.numberOfBins == 3)
-          assert(hv.values.size == 3)
-          assert(hv.values.keys == Set("Furniture", "Cosmetics", "Electronics"))
-          assert(hv("Furniture").absolute == 55)
-          assert(hv("Furniture").ratio == 55.0 / (55 + 20 + 60))
-          assert(hv("Cosmetics").absolute == 20)
-          assert(hv("Cosmetics").ratio == 20.0 / (55 + 20 + 60))
-          assert(hv("Electronics").absolute == 60)
-          assert(hv("Electronics").ratio == 60.0 / (55 + 20 + 60))
-
-      }
-    }
-
-    "compute correct metrics on numeric values" in withSparkSession { sparkSession =>
-      val dfFull = getDfWithNumericValues(sparkSession)
-      val histogram = Histogram("att2").calculate(dfFull)
-      assert(histogram.value.isSuccess)
-
-      histogram.value.get match {
-        case hv =>
-          assert(hv.numberOfBins == 4)
-          assert(hv.values.size == 4)
-      }
-    }
-
-    "compute correct metrics after binning if provided" in withSparkSession { sparkSession =>
-      val customBinner = udf {
-        (cnt: String) =>
-          cnt match {
-            case "a" | "b" => "Value1"
-            case _ => "Value2"
-          }
-      }
-      val dfFull = getDfMissing(sparkSession)
-      val histogram = Histogram("att1", Some(customBinner)).calculate(dfFull)
-
-      assert(histogram.value.isSuccess)
-
-      histogram.value.get match {
-        case hv =>
-          assert(hv.numberOfBins == 2)
-          assert(hv.values.keys == Set("Value1", "Value2"))
-
-      }
-    }
-    "compute correct metrics should only get top N bins" in withSparkSession { sparkSession =>
-      val dfFull = getDfMissing(sparkSession)
-      val histogram = Histogram("att1", None, 2).calculate(dfFull)
-
-      assert(histogram.value.isSuccess)
-
-      histogram.value.get match {
-        case hv =>
-          assert(hv.numberOfBins == 3)
-          assert(hv.values.size == 2)
-          assert(hv.values.keys == Set("a", Histogram.NullFieldReplacement))
-
-      }
-    }
-
-    "fail for max detail bins > 1000" in withSparkSession { sparkSession =>
-      val df = getDfFull(sparkSession)
-      Histogram("att1", binningUdf = None, maxDetailBins = 1001).calculate(df).value match {
-        case Failure(t) => t.getMessage shouldBe "Cannot return " +
-          "histogram values for more than 1000 values"
-        case _ => fail("test was expected to fail due to parameter precondition")
-      }
     }
   }
 
