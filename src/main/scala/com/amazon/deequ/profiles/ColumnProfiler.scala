@@ -70,6 +70,7 @@ private[deequ] case class NumericColumnStatistics(
     maxima: Map[String, Double],
     ranges: Map[String, Double],
     sums: Map[String, Double],
+    zerosCounts: Map[String, Long],
     kll: Map[String, BucketDistribution],
     approxPercentiles: Map[String, Seq[Double]]
 )
@@ -294,7 +295,7 @@ object ColumnProfiler {
       kllParameters: Option[KLLParameters])
     : Seq[Analyzer[_, Metric[_]]] = {
       val mandatoryAnalyzers = Seq(Minimum(column), Maximum(column), Range(column), Mean(column),
-        StandardDeviation(column), Variance(column), Sum(column))
+        StandardDeviation(column), Variance(column), Sum(column), ZerosCount(column))
 
       val optionalAnalyzers = if (kllProfiling) {
         Seq(KLLSketch(column, kllParameters))
@@ -581,6 +582,16 @@ object ColumnProfiler {
       .flatten
       .toMap
 
+    val zerosCounts = results.metricMap
+      .collect { case (analyzer: ZerosCount, metric: DoubleMetric) =>
+        metric.value match {
+          case Success(metricValue) => Some(analyzer.column -> metricValue.toLong)
+          case _ => None
+        }
+      }
+      .flatten
+      .toMap
+
 
     val kll = results.metricMap
       .collect { case (analyzer: KLLSketch, metric: KLLMetric) if metric.value.isSuccess =>
@@ -608,7 +619,8 @@ object ColumnProfiler {
       .toMap
 
 
-    NumericColumnStatistics(means, stdDevs, variances, minima, maxima, ranges, sums, kll, approxPercentiles)
+    NumericColumnStatistics(means, stdDevs, variances, minima, maxima, ranges,
+      sums, zerosCounts, kll, approxPercentiles)
   }
 
   /* Identifies all columns, which:
@@ -775,6 +787,7 @@ object ColumnProfiler {
               numericStats.minima.get(name),
               numericStats.ranges.get(name),
               numericStats.sums.get(name),
+              numericStats.zerosCounts.get(name),
               numericStats.stdDevs.get(name),
               numericStats.variances.get(name),
               numericStats.approxPercentiles.get(name))

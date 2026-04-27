@@ -17,37 +17,22 @@
 package com.amazon.deequ.analyzers
 
 import com.amazon.deequ.analyzers.Preconditions.{hasColumn, isNumeric}
-import com.amazon.deequ.analyzers.Analyzers._
 import org.apache.spark.sql.{Column, Row}
-import org.apache.spark.sql.functions.{min, max}
-import org.apache.spark.sql.types.{DoubleType, StructType}
+import org.apache.spark.sql.functions.{sum, when}
+import org.apache.spark.sql.types.{IntegerType, StructType}
+import Analyzers._
 
-case class RangeState(
-    minValue: Double,
-    maxValue: Double)
-  extends DoubleValuedState[RangeState] {
-
-  override def metricValue(): Double = {
-    maxValue - minValue
-  }
-
-  override def sum(other: RangeState): RangeState = {
-    RangeState(math.min(minValue, other.minValue), math.max(maxValue, other.maxValue))
-  }
-}
-
-case class Range(column: String, where: Option[String] = None)
-  extends StandardScanShareableAnalyzer[RangeState]("Range", column)
+case class ZerosCount(column: String, where: Option[String] = None)
+  extends StandardScanShareableAnalyzer[NumMatches]("ZerosCount", column)
   with FilterableAnalyzer {
 
   override def aggregationFunctions(): Seq[Column] = {
-    min(conditionalSelection(column, where)).cast(DoubleType) ::
-      max(conditionalSelection(column, where)).cast(DoubleType) :: Nil
+    sum(when(conditionalSelection(column, where) === 0, 1).otherwise(0)).cast(IntegerType) :: Nil
   }
 
-  override def fromAggregationResult(result: Row, offset: Int): Option[RangeState] = {
-    ifNoNullsIn(result, offset, howMany = 2) { _ =>
-      RangeState(result.getDouble(offset), result.getDouble(offset + 1))
+  override def fromAggregationResult(result: Row, offset: Int): Option[NumMatches] = {
+    ifNoNullsIn(result, offset) { _ =>
+      NumMatches(result.getInt(offset).toLong)
     }
   }
 

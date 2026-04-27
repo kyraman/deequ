@@ -67,6 +67,7 @@ case class NumericColumnProfile(
     minimum: Option[Double],
     range: Option[Double],
     sum: Option[Double],
+    zerosCount: Option[Long],
     stdDev: Option[Double],
     variance: Option[Double],
     approxPercentiles: Option[Seq[Double]])
@@ -134,6 +135,9 @@ object ColumnProfiles {
           }
           numericColumnProfile.sum.foreach { sum =>
             columnProfileJson.addProperty("sum", sum)
+          }
+          numericColumnProfile.zerosCount.foreach { zerosCount =>
+            columnProfileJson.addProperty("zerosCount", zerosCount)
           }
           numericColumnProfile.stdDev.foreach { stdDev =>
             columnProfileJson.addProperty("stdDev", stdDev)
