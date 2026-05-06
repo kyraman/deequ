@@ -50,6 +50,7 @@ case class HistogramBinned(
                             override val column: String,
                             binCount: Option[Int] = None,
                             customEdges: Option[Array[Double]] = None,
+                            includeOverflowBins: Boolean = false,
                             override val where: Option[String] = None,
                             override val computeFrequenciesAsRatio: Boolean = true,
                             // Reuse Histogram's AggregateFunction implementations since just grouping
@@ -71,6 +72,7 @@ case class HistogramBinned(
       column == other.column &&
         binCount == other.binCount &&
         customEdges.map(_.toSeq) == other.customEdges.map(_.toSeq) &&
+        includeOverflowBins == other.includeOverflowBins &&
         where == other.where &&
         computeFrequenciesAsRatio == other.computeFrequenciesAsRatio &&
         aggregateFunction == other.aggregateFunction
@@ -78,8 +80,8 @@ case class HistogramBinned(
   }
 
   override def hashCode(): Int = {
-    (column, binCount, customEdges.map(_.toSeq), where,
-      computeFrequenciesAsRatio, aggregateFunction).hashCode()
+    (column, binCount, customEdges.map(_.toSeq), includeOverflowBins,
+      where, computeFrequenciesAsRatio, aggregateFunction).hashCode()
   }
 
   private var storedEdges: Array[Double] = _
@@ -128,7 +130,7 @@ case class HistogramBinned(
     // Create binned data using DataFrame operations
     val binnedData = if (storedEdges.isEmpty) {
       filteredData.withColumn(column, lit(Histogram.NullFieldReplacement))
-    } else if (customEdges.isDefined) {
+    } else if (customEdges.isDefined || includeOverflowBins) {
       val edges = storedEdges
 
       // Builds a balanced binary decision tree of when/otherwise expressions,
@@ -188,7 +190,15 @@ case class HistogramBinned(
   }
 
   private def computeCustomEdges(): Array[Double] = {
-    customEdges.get.sorted
+    val sorted = customEdges.get.sorted
+    addOverflowEdges(sorted)
+  }
+
+  private def addOverflowEdges(edges: Array[Double]): Array[Double] = {
+    if (!includeOverflowBins) return edges
+    val withLeft = if (edges.head != Double.NegativeInfinity) Double.NegativeInfinity +: edges else edges
+    val withBoth = if (withLeft.last != Double.PositiveInfinity) withLeft :+ Double.PositiveInfinity else withLeft
+    withBoth.toArray
   }
 
   private def computeEqualWidthEdges(filteredData: DataFrame,
@@ -209,7 +219,8 @@ case class HistogramBinned(
     val maxDouble = maxVal.doubleValue()
     val binWidth = (maxDouble - minDouble) / binCount.get
 
-    Array.tabulate(binCount.get + 1)(i => minDouble + i * binWidth)
+    val edges = Array.tabulate(binCount.get + 1)(i => minDouble + i * binWidth)
+    addOverflowEdges(edges)
   }
 
   override def computeMetricFrom(state: Option[FrequenciesAndNumRows]): HistogramBinnedMetric = {
