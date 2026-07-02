@@ -1,0 +1,19 @@
+# Shadow engine config for awslabs/deequ.
+
+codebase:
+  src_dir: src/main/scala
+  file_ext: .scala
+  test_dir: src/test/scala
+  language: scala
+
+bot:
+  name: shadow   # renders the <!-- shadow:clean --> marker auto-approve.yml greps for
+  attribution: "Reviewed by Shadow · github.com/sudsali/shadow"
+  escalate_label: needs-human
+  max_replies: 2
+  max_runs_per_hour: 20
+
+models:
+  investigator: us.anthropic.claude-opus-4-7
+  critic: us.anthropic.claude-opus-4-7
+  reporter: us.anthropic.claude-haiku-4-5-20251001-v1:0
