@@ -17,3 +17,4 @@ models:
   investigator: us.anthropic.claude-opus-4-7
   critic: us.anthropic.claude-opus-4-7
   reporter: us.anthropic.claude-haiku-4-5-20251001-v1:0
+  issue: us.anthropic.claude-sonnet-4-6
